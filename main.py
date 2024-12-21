@@ -77,9 +77,6 @@ async def obtener_datos_usuario(session, user_id, semaphore, writer, user_ids_pr
                 await asyncio.sleep(tiempo_espera)
                 tiempo_espera *= 2  # Incrementar el tiempo de espera (retroceso exponencial)
         print(f"No se pudo obtener los datos del usuario {user_id} después de {intentos} intentos.")
-a
-
-       
 # Función para eliminar el user_id del archivo de texto
 def eliminar_user_id_del_txt(user_id):
     # Leer todos los user_ids del archivo
