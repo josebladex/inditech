@@ -8,7 +8,7 @@ import signal
 BASE_URL = "https://zara-boost-hackathon.nuwe.io"
 
 # Número máximo de solicitudes concurrentes
-MAX_CONCURRENT_REQUESTS = 9  # Puedes ajustar este valor según tus necesidades
+MAX_CONCURRENT_REQUESTS = 6  # Puedes ajustar este valor según tus necesidades
 
 # Variable global para controlar la interrupción
 interrumpido = False
@@ -31,6 +31,7 @@ async def obtener_lista_user_ids():
                 return []
 
 # Función para obtener los detalles de un usuario
+# Función para obtener los detalles de un usuario con manejo de errores y reintentos
 async def obtener_datos_usuario(session, user_id, semaphore, writer, user_ids_procesados):
     global interrumpido
     async with semaphore:  # Limitar el número de solicitudes concurrentes
@@ -41,30 +42,44 @@ async def obtener_datos_usuario(session, user_id, semaphore, writer, user_ids_pr
             print(f"El usuario {user_id} ya fue procesado, omitiendo...")
             return  # Si el usuario ya fue procesado, no hacer nada
 
-        print(f"Iniciando la obtención de datos para el usuario {user_id}...")
-        async with session.get(f"{BASE_URL}/users/{user_id}") as response:
-            if response.status == 200:
-                print(f"Datos obtenidos para el usuario {user_id}.")
-                datos_usuario = await response.json()  # Retorna el diccionario con los detalles
+        intentos = 3  # Número de reintentos permitidos
+        tiempo_espera = 1  # Tiempo inicial de espera entre reintentos (en segundos)
 
-                # Extraer los datos necesarios
-                user_id = datos_usuario["user_id"]
-                country = datos_usuario["values"]["country"][0] if datos_usuario["values"]["country"] else None
-                R = datos_usuario["values"]["R"][0] if datos_usuario["values"]["R"] else None
-                F = datos_usuario["values"]["F"][0] if datos_usuario["values"]["F"] else None
-                M = datos_usuario["values"]["M"][0] if datos_usuario["values"]["M"] else None
+        for intento in range(1, intentos + 1):
+            try:
+                print(f"Iniciando la obtención de datos para el usuario {user_id}, intento {intento}...")
+                async with session.get(f"{BASE_URL}/users/{user_id}", timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        print(f"Datos obtenidos para el usuario {user_id}.")
+                        datos_usuario = await response.json()  # Retorna el diccionario con los detalles
 
-                # Escribir los resultados en el archivo CSV inmediatamente
-                writer.writerow([user_id, country, R, F, M])
+                        # Extraer los datos necesarios
+                        user_id = datos_usuario["user_id"]
+                        country = datos_usuario["values"]["country"][0] if datos_usuario["values"]["country"] else None
+                        R = datos_usuario["values"]["R"][0] if datos_usuario["values"]["R"] else None
+                        F = datos_usuario["values"]["F"][0] if datos_usuario["values"]["F"] else None
+                        M = datos_usuario["values"]["M"][0] if datos_usuario["values"]["M"] else None
 
-                # Marcar el usuario como procesado
-                user_ids_procesados.add(user_id)
-                
-                # Eliminar el user_id del archivo de texto
-                eliminar_user_id_del_txt(user_id)
-            else:
-                print(f"Error al obtener datos para el usuario {user_id}: {response.status}")
+                        # Escribir los resultados en el archivo CSV inmediatamente
+                        writer.writerow([user_id, country, R, F, M])
 
+                        # Marcar el usuario como procesado
+                        user_ids_procesados.add(user_id)
+                        
+                        # Eliminar el user_id del archivo de texto
+                        eliminar_user_id_del_txt(user_id)
+                        return  # Salir del bucle si fue exitoso
+                    else:
+                        print(f"Error al obtener datos para el usuario {user_id}: {response.status}")
+                        return
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                print(f"Error al obtener datos del usuario {user_id}: {e}. Reintentando en {tiempo_espera} segundos...")
+                await asyncio.sleep(tiempo_espera)
+                tiempo_espera *= 2  # Incrementar el tiempo de espera (retroceso exponencial)
+        print(f"No se pudo obtener los datos del usuario {user_id} después de {intentos} intentos.")
+a
+
+       
 # Función para eliminar el user_id del archivo de texto
 def eliminar_user_id_del_txt(user_id):
     # Leer todos los user_ids del archivo
