@@ -1,0 +1,22 @@
+# Archivos relacionados con el shell
+.bash_history
+.bash_logout
+.bashrc
+.profile
+
+# Directorios de caché
+.cache/
+
+# Archivos de configuración del sistema
+.ssh/
+.sudo_as_admin_successful
+
+# Archivos del proyecto
+#main.py
+#requirements.txt
+#test.py
+#user_ids.txt
+#usuarios.csv
+
+# Entorno virtual
+venv/
